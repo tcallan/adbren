@@ -24,11 +24,15 @@ use File::HomeDir;
 use Getopt::Long;
 use Storable;
 use Data::Dumper;
+use Digest::CRC;
 use Carp;
 
 ### DEFAULTS ###
 
+# TODO: make the destination directory a config setting and get rid of these paths
 my $format_presets = [
+"/mnt/sumomo/data/anime/current/\%anime_name_romaji\%/\%anime_name_romaji\% - \%episode\%\%version\% [\%group_short\%]\%source\%[\%crc32\%].\%filetype\%",
+"/mnt/sumomo/anime/finished/\%anime_name_romaji\%/\%anime_name_romaji\% - \%episode\%\%version\% [\%group_short\%]\%source\%[\%crc32\%].\%filetype\%",
 "\%anime_name_english\%_\%episode\%\%version\%-\%group_short\%.\%filetype\%",
 "\%anime_name_english\%_\%episode\%\%version\%_\%episode_name\%-\%group_short\%.\%filetype\%",
 "\%anime_name_english\%_\%episode\%\%version\%_\%episode_name\%-\%group_short\%(\%crc32\%).\%filetype\%",
@@ -204,18 +208,42 @@ foreach my $filepath (@files) {
     if ( $fileinfo->{'anime_name_romaji'} eq "" ) {
         $fileinfo->{'anime_name_romaji'} = $fileinfo->{'anime_name_english'};
     }
+    # Manually calculate crc if anidb doesn't return one
+    if ( $fileinfo->{'crc32'} eq "" ) {
+        print "Calculating manual crc32 for $filename\n";
+        my $crc = Digest::CRC->new(type=>"crc32");
+        open(my $handle, $filepath);
+        $crc->addfile(*$handle);
+        close($handle);
+        my $hash = $crc->hexdigest;
+        $hash =~ tr/a-z/A-Z/;
+        $fileinfo->{'crc32'} = $hash;
+        print "Calculated $hash\n";
+    }
+    # Annotate files with non-standard sources
+    my $src = $fileinfo->{'source'};
+    if ( $src eq "HDTV" or $src eq "www" or $src eq "" ) {
+        $src = "";
+    } else {
+        $src = "[" . $src . "]";
+    }
+    $fileinfo->{'source'} = $src;
     $newname =~ s/\%orginal_name\%/$filename/xmsig;
     while ( $newname =~ /\%([^\%]+)\%/ ) {
         my $key = $1;
         if ( defined $fileinfo->{$key} ) {
             $fileinfo->{$key} = substr $fileinfo->{$key}, 0, 180;
             if ( !$noclean ) {
-                $fileinfo->{$key} =~ s/[?:%\/]//g;
+                # TODO: custom renaming rules
+                $fileinfo->{$key} =~ s/Nisekoi:/Nisekoi 2/g;
+                $fileinfo->{$key} =~ s/[:%\/]//g;
                 if ($strict) {
                     $fileinfo->{$key} =~ s/[^a-zA-Z0-9-]/_/g;
                 }
                 else {
-                    $fileinfo->{$key} =~ s/[^a-zA-Z0-9-&!`',.~+\- ]/_/g;
+                    # TODO: custom renaming rules
+                    $fileinfo->{$key} =~ s/\*/Bleep/g;
+                    $fileinfo->{$key} =~ s/[^a-zA-Z0-9-&!?()`',.~+\-; \[\]]/_/g;
                 }
                 $fileinfo->{$key} =~ s/[_]+/_/g;
             }
@@ -230,6 +258,7 @@ foreach my $filepath (@files) {
     $newname =~ s/_-\./-/g;
     $newname =~ s/_\ /\ /g;
     $newname =~ s/\ _/\ /g;
+    $newname =~ s/_\//\//g;
     my $newpath;
     my ( $fvol, $fdir, $ffile ) = File::Spec->splitpath($newname);
 
@@ -546,6 +575,7 @@ sub file {
         $fileinfo{anime_synonyms}   =~ s/'/,/g;
         $fileinfo{lang_sub}         =~ s/'/,/g;
         $fileinfo{lang_dub}         =~ s/'/,/g;
+        $fileinfo{crc32}            =~ tr/a-z/A-Z/;
         $fileinfo{censored} = "cen"
           if ( $fileinfo{status_code} & STATUS_CEN );
         $fileinfo{censored} = "unc"
@@ -722,9 +752,12 @@ sub _sendrecv {
     debug "<--", $recvmsg;
     if ( $recvmsg =~ m/(adbr-[\d]+)/xmsi ) {
         if ( $tag ne $1 ) {
-            carp
-              "This is not the tag we are waiting for. Retrying ($tag!= $1)\n";
-            return $self->_sendrecv( $command, $parameter_ref, $delay );
+            # Die if we don't get the expected response
+            # Otherwise we'll continute to retry and usually end up banned
+            # from the API
+            croak
+              "This is not the tag we are waiting for. Dying ($tag!= $1)\n";
+            #return $self->_sendrecv( $command, $parameter_ref, $delay );
         }
         $recvmsg =~ s/adbr-[\d]+\ //xmsi;
     }
