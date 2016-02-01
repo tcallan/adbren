@@ -102,6 +102,7 @@ if ($ping) {
     exit(1);
 }
 
+
 if ( $state !~ m/[0-3]/ ) {
     if    ( $state eq "unknown" ) { $state = "0"; }
     elsif ( $state eq "hdd" )     { $state = "1"; }
@@ -241,9 +242,7 @@ foreach my $filepath (@files) {
                     $fileinfo->{$key} =~ s/[^a-zA-Z0-9-]/_/g;
                 }
                 else {
-                    # TODO: custom renaming rules
-                    $fileinfo->{$key} =~ s/\*/Bleep/g;
-                    $fileinfo->{$key} =~ s/[^a-zA-Z0-9-&!?()`',.~+\-; \[\]]/_/g;
+                    $fileinfo->{$key} =~ s/[\0\/\t\n\r]/_/g;
                 }
                 $fileinfo->{$key} =~ s/[_]+/_/g;
             }
@@ -670,6 +669,7 @@ sub login {
     $parameters{client}    = $self->{client};
     $parameters{clientver} = $self->{clientver};
     $parameters{nat}       = 1;
+    $parameters{enc}       = "UTF8";
     $msg = $self->_sendrecv( $msg, \%parameters, 0 );
 
     if ( defined $msg
