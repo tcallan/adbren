@@ -235,10 +235,8 @@ foreach my $filepath (@files) {
         if ( defined $fileinfo->{$key} ) {
             $fileinfo->{$key} = substr $fileinfo->{$key}, 0, 180;
             if ( !$noclean ) {
-                # TODO: custom renaming rules
-                $fileinfo->{$key} =~ s/Nisekoi:/Nisekoi 2/g;
-                $fileinfo->{$key} =~ s/[:%\/]//g;
                 if ($strict) {
+                    $fileinfo->{$key} =~ s/[:%\/]//g;
                     $fileinfo->{$key} =~ s/[^a-zA-Z0-9-]/_/g;
                 }
                 else {
