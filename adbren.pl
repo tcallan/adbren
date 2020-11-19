@@ -141,6 +141,12 @@ if ($onlyhash) {
         my $ed2k = AniDB::UDPClient::ed2k_hash($file);
         my $size = -s $file;
         print "ed2k://|file|" . $file . "|" . $size . "|" . $ed2k . "|\n";
+        my $crc32 = calculate_crc($file);
+        my $verified = "Unverified";
+        if (index(lc($file), lc($crc32)) != -1) {
+            $verified = "Verified";
+        }
+        print $verified . " " . $crc32 . "\n";
     }
     exit;
 }
@@ -212,12 +218,7 @@ foreach my $filepath (@files) {
     # Manually calculate crc if anidb doesn't return one
     if ( $fileinfo->{'crc32'} eq "" ) {
         print "Calculating manual crc32 for $filename\n";
-        my $crc = Digest::CRC->new(type=>"crc32");
-        open(my $handle, $filepath);
-        $crc->addfile(*$handle);
-        close($handle);
-        my $hash = $crc->hexdigest;
-        $hash =~ tr/a-z/A-Z/;
+        my $hash = calculate_crc($filepath);
         $fileinfo->{'crc32'} = $hash;
         print "Calculated $hash\n";
     }
@@ -225,7 +226,7 @@ foreach my $filepath (@files) {
     my $src = $fileinfo->{'source'};
     if ( $src eq "HDTV" or $src eq "www" or $src eq "" ) {
         $src = "";
-    } else {
+    } elsif ($src !~ /^\[/) {
         $src = "[" . $src . "]";
     }
     $fileinfo->{'source'} = $src;
@@ -297,6 +298,17 @@ foreach my $filepath (@files) {
     }
 }
 $a->logout();
+
+sub calculate_crc {
+    my $filepath = shift(@_);
+    my $crc = Digest::CRC->new(type=>"crc32");
+    open(my $handle, $filepath);
+    $crc->addfile(*$handle);
+    close($handle);
+    my $hash = $crc->hexdigest;
+    $hash =~ tr/a-z/A-Z/;
+    return $hash
+}
 
 sub print_help {
     print <<EOF;
