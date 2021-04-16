@@ -230,6 +230,17 @@ foreach my $filepath (@files) {
         $src = "[" . $src . "]";
     }
     $fileinfo->{'source'} = $src;
+
+    # Grab group name from the file if something sane doesn't come back from anidb
+    my $group = $fileinfo->{'group_short'};
+    if ( $group eq "raw" or $group eq "" ) {
+        if ($filename =~ /\[([^\[]*)\]/) {
+	    print "Using group from file ($1) instead of group from anidb ($group)\n";
+	    $group = $1;
+	}
+    }
+    $fileinfo->{'group_short'} = $group;
+
     $newname =~ s/\%orginal_name\%/$filename/xmsig;
     while ( $newname =~ /\%([^\%]+)\%/ ) {
         my $key = $1;
